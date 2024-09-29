@@ -8,14 +8,15 @@ on:
       mod_version:
         type: string
         required: false
+        description: Mod Version
 
 env:
-  GITHUB_REPO: "linuxserver/docker-mods" #don't modify
-  ENDPOINT: "linuxserver/mods" #don't modify
-  BASEIMAGE: "replace_baseimage" #replace
-  MODNAME: "replace_modname" #replace
+  GITHUB_REPO: "cls1997/ls-docker-mods" #don't modify
+  ENDPOINT: "cls1997/ls-docker-mods" #don't modify
+  BASEIMAGE: "universal" #replace
+  MODNAME: "trust-kachitoritai-ca" #replace
   MOD_VERSION: ${{ inputs.mod_version }} #don't modify
-  MULTI_ARCH: "true" #set to false if not needed
+  MULTI_ARCH: "false" #set to false if not needed
 
 jobs:
   set-vars:
