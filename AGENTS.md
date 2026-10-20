@@ -15,6 +15,7 @@
 3. 同步替换模板中所有 `imagename-modname`、`replace_baseimage`、`replace_modname` 和 `maintainer` 占位符，包括 s6 依赖文件名、bundle 条目和 `up` 路径。
 4. 最终镜像必须 `FROM scratch` 且只有一个文件层；通常只用一次 `COPY root/ /`。复杂构建可用多阶段，但最终仅复制组装好的载荷一次。
 5. 使用 s6-overlay v3。安装包前的步骤依赖 `init-mods`，并作为 `init-mods-package-install` 的依赖；安装包后的步骤依赖 `init-mods-package-install`，并作为 `init-mods-end` 的依赖。所需 oneshot/longrun 都须加入 `user/contents.d`。
+   本镜像配置 Mod 的 `-early` 服务是例外：它依赖 `init-config-end`，而 `init-mods` 依赖它，保证标准 Mod 初始化前配置完成。不要给 `-early` 添加 `init-mods` 依赖，否则会形成循环。旧服务名保留为空操作兼容节点，以支持覆盖更新已有容器。
 6. 将系统包和 pip 包分别追加到 `/mod-repo-packages-to-install.list`、`/mod-pip-packages-to-install.list`，避免重复实现基础镜像的包安装器。需要时区分 Ubuntu 和 Alpine。
 7. longrun 服务依赖 `init-services`，使用 `exec` 在前台运行；初始化脚本应可重复执行，避免每次启动重复追加配置。不要保留会运行的演示命令或不需要的服务。
 8. 脚本和 s6 文件使用 UTF-8 无 BOM、LF；`run`、`finish`、`check` 保持可执行权限。下载依赖保留 TLS、签名或校验和验证。

@@ -7,7 +7,8 @@
 - 15 项离线功能测试：`python3 -m unittest discover -s tests -v`。
 - 工作流 actionlint 检查、Bash 语法、s6 注册/依赖/执行权限和 `git diff --check`。
 - `linux/amd64`、`linux/arm64` 两个目标均构建成功，最终镜像均恰好 1 个文件层。
-- 以下 10 个实际 LinuxServer 基础镜像（均 amd64）完成初始化、包管理器配置检查、重复运行及重启检查。
+- 以下 10 个实际 LinuxServer 基础镜像（均 amd64）完成初始化、包管理器配置检查、重复运行及重启检查。早期关卡更新后已全部重跑，使用 `S6_VERBOSITY=2` 日志断言每次启动均先完成 `init-mod-universal-package-manager-certnet-mirror-early`，再启动 `init-mods`。
+- 升级兼容性：在 Alpine 3.23 中先复制旧版本 `61f9c05` 的 root 载荷，再覆盖新载荷，验证初始化、镜像配置和重启顺序均通过，没有旧依赖残留引起的循环。
 
 | 基础镜像 | 实际系统版本 | 结果 | 本地基础镜像 ID（sha256） |
 | --- | --- | --- | --- |

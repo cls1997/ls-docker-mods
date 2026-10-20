@@ -2,7 +2,11 @@
 
 为 LinuxServer 容器的发行版包管理器配置 [CERNET 镜像服务](https://mirrors.cernet.edu.cn)，加速软件包下载。名称按本仓库约定保留 `certnet` 拼写；服务名称和域名是 **CERNET**。
 
-本 Mod 只调整仓库地址，不安装包、不升级系统、不改变发行版版本、仓库组件或签名校验策略。每次启动会按 `/etc/os-release` 自动选择配置，且在 `init-mods-package-install` 之前完成，使其他 Mod 的统一包安装也能使用镜像。仅适用于 s6-overlay v3 基础镜像。
+本 Mod 只调整仓库地址，不安装包、不升级系统、不改变发行版版本、仓库组件或签名校验策略。每次启动会按 `/etc/os-release` 自动选择配置，且在 `init-mods` 开始之前完成，使依赖该阶段的标准 Mod 初始化和统一包安装都能使用镜像。仅适用于 s6-overlay v3 基础镜像。
+
+初始化顺序为 `init-config-end → 本 Mod 的 -early 服务 → init-mods → 其他标准 Mod 初始化/统一包安装`。顺序由 s6 依赖保证，不依赖 `DOCKER_MODS` 列表中的位置。旧服务名保留为空操作的兼容节点，避免更新已有容器时残留的旧依赖形成循环。
+
+此顺序不覆盖加载器在下载 Mod 前补装 curl/jq、基础镜像更早的初始化步骤，或绕过 `init-mods` 依赖的非标准脚本。
 
 ## 基础镜像定义
 

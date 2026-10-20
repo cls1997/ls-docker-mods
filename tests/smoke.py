@@ -84,6 +84,11 @@ def initialized(name, count):
         if "fatal:" in logs:
             raise RuntimeError(logs)
         if logs.count("[ls.io-init] done.") >= count:
+            for boot in logs.split("[ls.io-init] done.")[:count]:
+                ready = boot.find("service init-mod-universal-package-manager-certnet-mirror-early successfully started")
+                mods = boot.find("service init-mods: starting")
+                if not (0 <= ready < mods):
+                    raise RuntimeError(f"Mirror configuration did not finish before init-mods:\n{boot}")
             return logs
         time.sleep(0.25)
     raise RuntimeError(f"Initialization timed out: {logs}")
@@ -102,7 +107,7 @@ def test_image(image):
             command("docker", "pull", image)
         command("docker", "build", "-f", "tests/Dockerfile.smoke",
                 "--build-arg", f"BASE_IMAGE={image}", "-t", tag, ".")
-        command("docker", "run", "-d", "--name", name, tag)
+        command("docker", "run", "-d", "-e", "S6_VERBOSITY=2", "--name", name, tag)
         initialized(name, 1)
         command("docker", "exec", name, "bash", "-c", PROBE)
         command("docker", "restart", name)

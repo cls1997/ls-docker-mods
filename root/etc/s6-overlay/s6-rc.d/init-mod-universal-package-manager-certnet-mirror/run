@@ -1,3 +1,4 @@
 #!/usr/bin/with-contenv bash
-set -e
-exec /usr/local/lib/certnet-mirror/configure
+# Compatibility node for containers that already extracted the original Mod.
+# Configuration now runs in the early service, before init-mods.
+exit 0
