@@ -36,7 +36,7 @@
 - GHCR 输出 `ghcr.io/cls1997/ls-docker-mods:<baseimage>-<modname>`；Docker Hub 输出 `cls1997/ls-docker-mods:<baseimage>-<modname>`。默认另有 `-<完整提交SHA>` 标签。
 - 当前模板手动输入 `mod_version` 时使用版本覆盖模式，只发布 `-<版本>` 和 `-<版本>-<完整提交SHA>` 标签。不要在文档中将其描述为默认标签更新。
 - `workflow_dispatch` 的手动入口要求默认分支存在相同路径且包含该事件的工作流。当前 master 没有该文件，不能承诺 Actions UI 已有 Run workflow 按钮；现阶段用 Mod 分支 push 发布，启用手动入口须单独配置默认分支。
-- GHCR 使用 GitHub Actions Secrets `CR_USER`/`CR_PAT`；Docker Hub 使用 `DOCKERUSER`/`DOCKERPASS`。至少一组配置完整。不要在对话、仓库、脚本或日志中暴露值。
+- 本 Mod 的 GHCR 发布使用 `github.actor` 和自动提供的 `GITHUB_TOKEN`，经上游工作流的 `CR_USER`/`CR_PAT` 参数传入；仅 publish 任务授予 `packages: write`，PR 验证保持只读。已有 package 须授予本仓库 Actions 写入权限。Docker Hub 仍使用 `DOCKERUSER`/`DOCKERPASS`。不要在对话、仓库、脚本或日志中暴露值。
 - 以 Actions 成功记录和实际 registry 产物确认发布，不把本地构建当成已发布。测试容器用 `DOCKER_MODS=<registry>/<endpoint>:<tag>`；多个 Mod 以 `|` 分隔。
 
 ## 官方参考

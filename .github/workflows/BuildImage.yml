@@ -97,10 +97,13 @@ jobs:
   publish:
     needs: [validate, set-vars]
     if: needs.set-vars.outputs.PUBLISH == 'true'
+    permissions:
+      contents: read
+      packages: write
     uses: linuxserver/github-workflows/.github/workflows/docker-mod-builder.yml@v1
     secrets:
-      CR_USER: ${{ secrets.CR_USER }}
-      CR_PAT: ${{ secrets.CR_PAT }}
+      CR_USER: ${{ github.actor }}
+      CR_PAT: ${{ secrets.GITHUB_TOKEN }}
       DOCKERUSER: ${{ secrets.DOCKERUSER }}
       DOCKERPASS: ${{ secrets.DOCKERPASS }}
     with:

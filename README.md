@@ -99,7 +99,7 @@ docker rm -f certnet-smoke
 
 分支为 `universal-package-manager-certnet-mirror`，工作流参数为 `BASEIMAGE=universal`、`MODNAME=package-manager-certnet-mirror`、`MULTI_ARCH=true`。仅在匹配的 Mod 分支 push/手动运行后发布；PR 只验证。
 
-GHCR 使用 GitHub Actions Secrets `CR_USER` / `CR_PAT`；Docker Hub 使用 `DOCKERUSER` / `DOCKERPASS`。默认标签为 `universal-package-manager-certnet-mirror` 和其 `-<完整提交SHA>` 版本。手动 `mod_version` 只发布版本标签，不移动默认标签。手动入口仍需默认分支存在对应 workflow；详见 [仓库发布说明](https://github.com/cls1997/ls-docker-mods/blob/master/README.md)。代码完成和本地构建不表示已经发布。
+GHCR 使用 GitHub 自动提供的 `GITHUB_TOKEN` 和 `github.actor`，通过上游工作流的 `CR_PAT` / `CR_USER` 参数传入，无需维护同名个人 Secrets。仅 publish 任务授予 `packages: write` 权限；已有 GHCR package 还需在 **Manage Actions access** 中授予本仓库写入权限。Docker Hub 仍使用 `DOCKERUSER` / `DOCKERPASS`。默认标签为 `universal-package-manager-certnet-mirror` 和其 `-<完整提交SHA>` 版本。手动 `mod_version` 只发布版本标签，不移动默认标签。手动入口仍需默认分支存在对应 workflow；详见 [仓库发布说明](https://github.com/cls1997/ls-docker-mods/blob/master/README.md)。代码完成和本地构建不表示已经发布。
 
 ## 参考
 
