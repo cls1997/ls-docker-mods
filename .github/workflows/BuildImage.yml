@@ -16,8 +16,8 @@ permissions:
 env:
   GITHUB_REPO: "cls1997/ls-docker-mods"
   ENDPOINT: "cls1997/ls-docker-mods"
-  BASEIMAGE: "replace_baseimage"
-  MODNAME: "replace_modname"
+  BASEIMAGE: "universal"
+  MODNAME: "package-manager-certnet-mirror"
   MOD_VERSION: ${{ inputs.mod_version }}
   MULTI_ARCH: "true"
 
@@ -37,6 +37,10 @@ jobs:
             # Template scripts use Bash; adjust if adding another interpreter.
             bash -n "$script"
           done < <(find root -type f \( -name run -o -name finish -o -name check \) -print0)
+          test -x root/usr/local/lib/certnet-mirror/configure
+          bash -n root/usr/local/lib/certnet-mirror/configure
+      - name: Test repository transformations and repeated runs
+        run: python3 -m unittest discover -s tests -v
       - name: Build and check the single-layer Mod
         run: |
           set -euo pipefail

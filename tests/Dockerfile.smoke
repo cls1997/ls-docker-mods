@@ -1,0 +1,6 @@
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE=ghcr.io/linuxserver/baseimage-alpine:3.23
+FROM ${BASE_IMAGE}
+# Test-only integration: exercise the payload before it has a registry endpoint.
+# This is not the distributed single-layer Mod image.
+COPY root/ /

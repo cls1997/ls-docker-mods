@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+shopt -s nullglob
+
+# Optional staging root/architecture arguments are used by the offline tests.
+# The s6 service always invokes this without arguments against the real root.
+root=${1:-/}
+root=${root%/}
+arch=${2:-$(uname -m)}
+lib=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+temp_file=
+trap 'if [[ -n "$temp_file" ]]; then rm -f -- "$temp_file"; fi' EXIT
+
+log() { printf '[certnet-mirror] %s\n' "$*"; }
+
+# Preserve a first-use backup; only replace content if it actually changed.
+# Writing through the existing file also preserves its mode and symlink target.
+save() {
+    local file=$1
+    # sha256sum is supplied by these minimal images; cmp/diff often are not.
+    if [[ -f "$file" ]] && [[ "$(sha256sum < "$file")" == "$(sha256sum < "$temp_file")" ]]; then
+        rm -f -- "$temp_file"
+        temp_file=
+        return
+    fi
+    if [[ -f "$file" && ! -e "$file.certnet-mirror.bak" ]]; then
+        cp -p -- "$file" "$file.certnet-mirror.bak"
+    fi
+    cat -- "$temp_file" > "$file"
+    rm -f -- "$temp_file"
+    temp_file=
+    log "Configured ${file#"$root"}"
+}
+
+os_release="$root/etc/os-release"
+[[ -r "$os_release" ]] || os_release="$root/usr/lib/os-release"
+if [[ ! -r "$os_release" ]]; then
+    log 'No os-release file; keeping existing repositories.'
+    exit 0
+fi
+# os-release is supplied by the base image, not fetched from the network.
+. "$os_release"
+ID=${ID:-unknown}
+
+case "$ID" in
+    ubuntu|debian|kali)
+        for file in "$root/etc/apt/sources.list" "$root"/etc/apt/sources.list.d/*.list "$root"/etc/apt/sources.list.d/*.sources; do
+            [[ -f "$file" ]] || continue
+            temp_file=$(mktemp "${file}.certnet.XXXXXX")
+            awk -v distro="$ID" -v arch="$arch" -v deb822="${file##*.}" \
+                -f "$lib/apt.awk" "$file" > "$temp_file"
+            save "$file"
+        done
+        ;;
+    alpine)
+        for file in "$root/etc/apk/repositories" "$root"/etc/apk/repositories.d/*.list; do
+            [[ -f "$file" ]] || continue
+            temp_file=$(mktemp "${file}.certnet.XXXXXX")
+            # Preserve release, repo names, tags, comments and non-official repos.
+            sed -E '/^[[:space:]]*#/!s@https?://(dl-cdn|dl-[0-9]+)\.alpinelinux\.org/alpine(/|$)@https://mirrors.cernet.edu.cn/alpine\2@g' \
+                "$file" > "$temp_file"
+            save "$file"
+        done
+        ;;
+    arch|archarm)
+        file="$root/etc/pacman.d/mirrorlist"
+        if [[ ! -f "$file" ]]; then
+            log 'No pacman mirrorlist; keeping existing repositories.'
+            exit 0
+        fi
+        case "$arch" in
+            x86_64|amd64) server='https://mirrors.cernet.edu.cn/archlinux/$repo/os/$arch' ;;
+            aarch64|arm64|armv7l|armhf) server='https://mirrors.cernet.edu.cn/archlinuxarm/$arch/$repo' ;;
+            *) log "Unsupported Arch architecture $arch; keeping existing repositories."; exit 0 ;;
+        esac
+        temp_file=$(mktemp "${file}.certnet.XXXXXX")
+        # Keep the original servers as fallbacks, without duplicating our entry.
+        awk -v server="$server" 'BEGIN { print "Server = " server }
+            !/^[[:space:]]*Server[[:space:]]*=[[:space:]]*https:\/\/mirrors\.cernet\.edu\.cn\/archlinux(arm)?\// { print }' \
+            "$file" > "$temp_file"
+        save "$file"
+        ;;
+    fedora)
+        if [[ "${VERSION_ID:-}" =~ ^[0-9]+$ ]] && (( VERSION_ID >= 44 )); then
+            # DNF5's documented override mechanism also handles Fedora 45's
+            # relocation of vendor repo files into /usr/share/dnf5/repos.d.
+            mkdir -p "$root/etc/dnf/repos.override.d"
+            file="$root/etc/dnf/repos.override.d/99-certnet-mirror.repo"
+            temp_file=$(mktemp "${file}.certnet.XXXXXX")
+            cat > "$temp_file" <<'EOF'
+[fedora]
+baseurl=
+metalink=
+mirrorlist=https://mirrors.cernet.edu.cn/api/rpm/mirrorlist/fedora/releases/$releasever/Everything/$basearch/os/
+
+[updates]
+baseurl=
+metalink=
+mirrorlist=https://mirrors.cernet.edu.cn/api/rpm/mirrorlist/fedora/updates/$releasever/Everything/$basearch/
+EOF
+            save "$file"
+        else
+            for file in "$root"/etc/yum.repos.d/*.repo; do
+                temp_file=$(mktemp "${file}.certnet.XXXXXX")
+                awk -f "$lib/fedora.awk" "$file" > "$temp_file"
+                save "$file"
+            done
+        fi
+        ;;
+    rhel)
+        # LSIO baseimage-el is Red Hat UBI, NOT CentOS/Rocky/AlmaLinux.
+        # CERNET has no equivalent UBI repo; substituting another distro is unsafe.
+        log 'Red Hat UBI (baseimage-el): no CERNET equivalent; keeping all repositories.'
+        ;;
+    *) log "Unsupported distribution $ID; keeping all repositories." ;;
+esac
+log "Finished for $ID ($arch); no packages were installed or upgraded."

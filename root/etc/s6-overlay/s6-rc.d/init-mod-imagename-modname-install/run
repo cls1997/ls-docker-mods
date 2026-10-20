@@ -1,7 +1,0 @@
-#!/usr/bin/with-contenv bash
-set -e
-
-# Runs after init-mods-package-install and before init-mods-end.
-# Replace this no-op with your configuration steps. Keep them repeatable:
-# this script runs every time the consumer container starts.
-echo '**** Template: no configuration required ****'
