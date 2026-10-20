@@ -2,54 +2,98 @@ name: Build Image
 
 on:
   push:
-  pull_request_target:
+  pull_request:
   workflow_dispatch:
     inputs:
       mod_version:
         type: string
         required: false
-        description: Mod Version
+        description: Publish only version-specific tags when supplied
+
+permissions:
+  contents: read
 
 env:
-  GITHUB_REPO: "cls1997/ls-docker-mods" #don't modify
-  ENDPOINT: "cls1997/ls-docker-mods" #don't modify
-  BASEIMAGE: "replace_baseimage" #replace
-  MODNAME: "replace_modname" #replace
-  MOD_VERSION: ${{ inputs.mod_version }} #don't modify
-  MULTI_ARCH: "true" #set to false if not needed
+  GITHUB_REPO: "cls1997/ls-docker-mods"
+  ENDPOINT: "cls1997/ls-docker-mods"
+  BASEIMAGE: "replace_baseimage"
+  MODNAME: "replace_modname"
+  MOD_VERSION: ${{ inputs.mod_version }}
+  MULTI_ARCH: "true"
 
 jobs:
-  set-vars:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Set Vars
-        id: outputs
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check scripts and executable permissions
+        shell: bash
         run: |
-          echo "GITHUB_REPO=${{ env.GITHUB_REPO }}" >> $GITHUB_OUTPUT
-          echo "ENDPOINT=${{ env.ENDPOINT }}" >> $GITHUB_OUTPUT
-          echo "BASEIMAGE=${{ env.BASEIMAGE }}" >> $GITHUB_OUTPUT
-          echo "MODNAME=${{ env.MODNAME }}" >> $GITHUB_OUTPUT
-          echo "MULTI_ARCH=${{ env.MULTI_ARCH }}" >> $GITHUB_OUTPUT
-          if [[ -z "${{ env.MOD_VERSION }}" ]]; then
-            # **** If the mod needs to be versioned, set the versioning logic below. Otherwise leave as is. ****
-            MOD_VERSION=""
-          else
-            MOD_VERSION=${{ env.MOD_VERSION }}
-            echo "MOD_VERSION_OVERRIDE=true" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          while IFS= read -r -d '' script; do
+            test -x "$script"
+            # Template scripts use Bash; adjust if adding another interpreter.
+            bash -n "$script"
+          done < <(find root -type f \( -name run -o -name finish -o -name check \) -print0)
+      - name: Build and check the single-layer Mod
+        run: |
+          set -euo pipefail
+          docker build --build-arg MOD_VERSION="$MOD_VERSION" -t mod-validation .
+          test "$(docker image inspect --format '{{len .RootFS.Layers}}' mod-validation)" = 1
+      - name: Check the optional multi-stage example
+        run: |
+          set -euo pipefail
+          if [ -f Dockerfile.complex ]; then
+            docker build -f Dockerfile.complex -t mod-complex-validation .
+            test "$(docker image inspect --format '{{len .RootFS.Layers}}' mod-complex-validation)" = 1
           fi
-          echo "MOD_VERSION=${MOD_VERSION}" >> $GITHUB_OUTPUT
-    outputs:
-      GITHUB_REPO: ${{ steps.outputs.outputs.GITHUB_REPO }}
-      ENDPOINT: ${{ steps.outputs.outputs.ENDPOINT }}
-      BASEIMAGE: ${{ steps.outputs.outputs.BASEIMAGE }}
-      MODNAME: ${{ steps.outputs.outputs.MODNAME }}
-      MULTI_ARCH: ${{ steps.outputs.outputs.MULTI_ARCH }}
-      MOD_VERSION: ${{ steps.outputs.outputs.MOD_VERSION }}
-      MOD_VERSION_OVERRIDE: ${{ steps.outputs.outputs.MOD_VERSION_OVERRIDE }}
 
-  build:
+  set-vars:
+    runs-on: ubuntu-latest
+    outputs:
+      GITHUB_REPO: ${{ steps.vars.outputs.GITHUB_REPO }}
+      ENDPOINT: ${{ steps.vars.outputs.ENDPOINT }}
+      BASEIMAGE: ${{ steps.vars.outputs.BASEIMAGE }}
+      MODNAME: ${{ steps.vars.outputs.MODNAME }}
+      MULTI_ARCH: ${{ steps.vars.outputs.MULTI_ARCH }}
+      MOD_VERSION: ${{ steps.vars.outputs.MOD_VERSION }}
+      MOD_VERSION_OVERRIDE: ${{ steps.vars.outputs.MOD_VERSION_OVERRIDE }}
+      PUBLISH: ${{ steps.vars.outputs.PUBLISH }}
+    steps:
+      - name: Set and validate build variables
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep workflow inputs in environment variables, outside shell source.
+          if [[ -n "$MOD_VERSION" && ! "$MOD_VERSION" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ ]]; then
+            echo 'Invalid mod_version: use a Docker tag suffix.' >&2
+            exit 1
+          fi
+          for name in GITHUB_REPO ENDPOINT BASEIMAGE MODNAME MULTI_ARCH MOD_VERSION; do
+            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_OUTPUT"
+          done
+          # Add automatic version detection above if needed. A manual override
+          # intentionally publishes version tags without moving the default tag.
+          if [[ -n "$MOD_VERSION" ]]; then
+            echo 'MOD_VERSION_OVERRIDE=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'MOD_VERSION_OVERRIDE=false' >> "$GITHUB_OUTPUT"
+          fi
+          publish=false
+          if [[ "$GITHUB_EVENT_NAME" == push || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            if [[ "$GITHUB_REPOSITORY" == "$GITHUB_REPO" && "$GITHUB_REF" == "refs/heads/${BASEIMAGE}-${MODNAME}" && "$BASEIMAGE" != replace_baseimage && "$MODNAME" != replace_modname ]]; then
+              publish=true
+            fi
+          fi
+          echo "PUBLISH=$publish" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [validate, set-vars]
+    if: needs.set-vars.outputs.PUBLISH == 'true'
     uses: linuxserver/github-workflows/.github/workflows/docker-mod-builder.yml@v1
-    needs: set-vars
     secrets:
       CR_USER: ${{ secrets.CR_USER }}
       CR_PAT: ${{ secrets.CR_PAT }}
